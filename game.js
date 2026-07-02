@@ -39,6 +39,13 @@ let bubbles = [];
 let particles = [];
 let motionParticles = []; // Feedback sparks for hand movement
 
+// MediaPipe Hands tracking state
+let handsDetector = null;
+let handX = null;
+let handY = null;
+let isHandTrackingActive = false;
+
+
 // Math puzzle info
 let currentQuestion = {
   numA: 0,
@@ -154,6 +161,30 @@ document.addEventListener('DOMContentLoaded', () => {
       handleCanvasInteraction(e.touches[0].clientX, e.touches[0].clientY, true);
     }
   });
+
+  // MediaPipe Hands detection initialization
+  if (typeof Hands !== 'undefined') {
+    try {
+      handsDetector = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+      });
+      handsDetector.setOptions({
+        maxNumHands: 1,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+      });
+      handsDetector.onResults(onHandResults);
+      isHandTrackingActive = true;
+      console.log('MediaPipe Hands initialized successfully.');
+    } catch (e) {
+      console.error('Error initializing MediaPipe Hands:', e);
+      isHandTrackingActive = false;
+    }
+  } else {
+    console.log('MediaPipe Hands not found. Using pixel differencing motion detection.');
+    isHandTrackingActive = false;
+  }
 });
 
 
@@ -204,6 +235,82 @@ function handleCanvasInteraction(clientX, clientY, isMouseMove = false) {
       canvas.style.cursor = hovered ? 'pointer' : 'default';
     }
   }
+}
+
+// MediaPipe Hand detection results callback
+function onHandResults(results) {
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    const hand = results.multiHandLandmarks[0];
+    
+    // Landmark 8 is the index finger tip, which acts as the cursor.
+    const point = hand[8];
+    
+    // Map to canvas mirrored coordinates
+    const targetX = (1 - point.x) * canvas.width;
+    const targetY = point.y * canvas.height;
+    
+    // Apply LERP (Linear Interpolation) to smooth coordinate updates
+    if (handX === null || handY === null) {
+      handX = targetX;
+      handY = targetY;
+    } else {
+      handX = handX * 0.5 + targetX * 0.5;
+      handY = handY * 0.5 + targetY * 0.5;
+    }
+    
+    // Add visual sparkles at finger tip coordinates during play
+    if (gameState === 'playing' && Math.random() < 0.25) {
+      motionParticles.push(new MotionFeedbackParticle(handX, handY));
+    }
+  } else {
+    // Reset if hand goes off camera view
+    handX = null;
+    handY = null;
+  }
+}
+
+// Check hand positioning during calibration
+function evaluateHandCalibration() {
+  if (handX === null || handY === null) {
+    // Decays slowly when no hand detected
+    calibrationProgress = Math.max(0, calibrationProgress - 0.4);
+    return;
+  }
+  
+  const cX = calibrationTarget.x * canvas.width;
+  const cY = calibrationTarget.y * canvas.height;
+  const dist = Math.hypot(handX - cX, handY - cY);
+  
+  if (dist <= calibrationTarget.radius) {
+    calibrationProgress = Math.min(100, calibrationProgress + 1.8);
+  } else {
+    calibrationProgress = Math.max(0, calibrationProgress - 0.4);
+  }
+  
+  const btnDone = document.getElementById('btnCalibrationDone');
+  const statusDiv = document.getElementById('calibrationStatus');
+  
+  if (calibrationProgress >= 100) {
+    if (btnDone.disabled) {
+      btnDone.disabled = false;
+      playCorrectSound();
+      statusDiv.innerHTML = '🎉 เซ็นเซอร์พร้อมทำงานแล้ว! <br>กดปุ่มด้านล่างเพื่อเริ่มเล่นได้เลย';
+    }
+  }
+}
+
+// Check hand interaction with bubbles in gameplay
+function evaluateHandGameplay() {
+  if (handX === null || handY === null) return;
+  
+  bubbles.forEach(bubble => {
+    if (bubble.y < 0 || bubble.y > canvas.height) return;
+    
+    const dist = Math.hypot(handX - bubble.x, handY - bubble.y);
+    if (dist <= bubble.radius) {
+      triggerPopEffect(bubble, bubble.isCorrect);
+    }
+  });
 }
 
 // Start Web Camera Feed
@@ -774,13 +881,6 @@ function processMotionDetection() {
     sy = 0;
   }
   
-  // Draw mirrored video onto the hidden motionCanvas
-  motionCtx.save();
-  motionCtx.translate(motionCanvas.width, 0);
-  motionCtx.scale(-1, 1);
-  motionCtx.drawImage(webcam, sx, sy, sWidth, sHeight, 0, 0, motionCanvas.width, motionCanvas.height);
-  motionCtx.restore();
-  
   // Draw mirrored video onto the main rendering Canvas
   ctx.save();
   ctx.translate(canvas.width, 0);
@@ -789,6 +889,24 @@ function processMotionDetection() {
   ctx.filter = "brightness(1.08) contrast(1.02)";
   ctx.drawImage(webcam, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
   ctx.restore();
+  
+  // Send frame to MediaPipe Hands if active, bypassing legacy pixel calculations
+  if (isHandTrackingActive && handsDetector && webcam.readyState >= 2) {
+    try {
+      handsDetector.send({ image: webcam });
+    } catch (e) {
+      console.error("MediaPipe Hands send error:", e);
+    }
+    return;
+  }
+  
+  // Legacy pixel differencing motion detection
+  // Draw mirrored video onto the hidden motionCanvas
+  motionCtx.save();
+  motionCtx.translate(motionCanvas.width, 0);
+  motionCtx.scale(-1, 1);
+  motionCtx.drawImage(webcam, sx, sy, sWidth, sHeight, 0, 0, motionCanvas.width, motionCanvas.height);
+  motionCtx.restore();
   
   // Get image pixel data from motion canvas
   const currFrame = motionCtx.getImageData(0, 0, motionCanvas.width, motionCanvas.height);
@@ -1005,12 +1123,40 @@ function drawCalibrationUI() {
 // --- Main Game Loop ---
 
 function gameLoop() {
-  // 1. Process webcam inputs and calculate motion maps
+  // 1. Process webcam inputs and calculate motion maps (and trigger MediaPipe frame processing if active)
   processMotionDetection();
+  
+  // Evaluate hand tracking positions if available
+  if (isHandTrackingActive) {
+    if (gameState === 'calibrating') {
+      evaluateHandCalibration();
+    } else if (gameState === 'playing') {
+      evaluateHandGameplay();
+    }
+  }
   
   // 2. Render State specific scenes
   if (gameState === 'calibrating') {
     drawCalibrationUI();
+    
+    // Draw target marker for hand tracking in calibration
+    if (isHandTrackingActive && handX !== null && handY !== null) {
+      ctx.save();
+      ctx.strokeStyle = '#00f5d4';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(handX, handY, 15, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#00f5d4';
+      ctx.beginPath();
+      ctx.arc(handX, handY, 5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.font = '1.8rem sans-serif';
+      ctx.fillText('🖐️', handX + 15, handY + 15);
+      ctx.restore();
+    }
   }
   
   if (gameState === 'playing') {
@@ -1033,6 +1179,25 @@ function gameLoop() {
       p.draw();
       if (p.alpha <= 0) motionParticles.splice(idx, 1);
     });
+    
+    // Draw Hand Cursor if tracked
+    if (isHandTrackingActive && handX !== null && handY !== null) {
+      ctx.save();
+      ctx.strokeStyle = '#00f5d4';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(handX, handY, 15, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      ctx.fillStyle = '#00f5d4';
+      ctx.beginPath();
+      ctx.arc(handX, handY, 5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.font = '2rem sans-serif';
+      ctx.fillText('🖐️', handX + 15, handY + 15);
+      ctx.restore();
+    }
   }
   
   // Loop continuously at screen frame rate
