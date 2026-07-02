@@ -1,0 +1,396 @@
+/* Simple and Clean CSS for AR Math Demo */
+
+:root {
+  --primary: #e91e63;
+  --secondary: #00bcd4;
+  --dark: #121214;
+  --panel-bg: rgba(30, 30, 35, 0.9);
+  --border-color: #333338;
+  --font-hud: system-ui, -apple-system, sans-serif;
+  --font-kids: system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  user-select: none;
+}
+
+body {
+  background-color: var(--dark);
+  color: #ffffff;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.game-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#webcam {
+  display: none;
+}
+
+#gameCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  transition: filter 0.1s ease;
+}
+
+#gameCanvas.flash-wrong {
+  filter: brightness(1.2) sepia(0.5) hue-rotate(-50deg);
+}
+
+.ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* Screen Layouts */
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.screen.active {
+  display: flex;
+  pointer-events: auto;
+}
+
+/* Simplified Cards */
+.menu-card {
+  background: var(--panel-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 16px;
+  padding: 30px;
+  width: 90%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: center;
+}
+
+.brand h1 {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+  color: #ffbe0b;
+}
+
+.brand p {
+  font-size: 1rem;
+  color: #a0a0b0;
+}
+
+/* Difficulty Buttons */
+.difficulty-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.diff-btn {
+  background: #222226;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 6px;
+  cursor: pointer;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.diff-btn.active {
+  border-color: var(--primary);
+  background: rgba(233, 30, 99, 0.15);
+}
+
+.diff-emoji {
+  font-size: 1.5rem;
+}
+
+.diff-label {
+  font-weight: bold;
+  font-size: 0.85rem;
+}
+
+.diff-range {
+  font-size: 0.7rem;
+  color: #888;
+}
+
+/* Instructions */
+.instructions {
+  background: rgba(0, 0, 0, 0.2);
+  border-left: 4px solid var(--secondary);
+  border-radius: 6px;
+  padding: 12px;
+  text-align: left;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #d0d0d8;
+}
+
+.instructions h3 {
+  color: var(--secondary);
+  margin-bottom: 4px;
+}
+
+/* Buttons */
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: #ccc;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-primary:disabled, .btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Calibration */
+.calibration-preview-area {
+  width: 100%;
+  height: 140px;
+  border: 2px dashed #444;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.calibration-status {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  color: #ffbe0b;
+}
+
+.slider-container {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.slider-container label {
+  font-size: 0.85rem;
+  color: var(--secondary);
+  font-weight: bold;
+}
+
+input[type="range"] {
+  width: 100%;
+}
+
+.slider-help {
+  font-size: 0.7rem;
+  color: #888;
+}
+
+/* HUD elements during play */
+.hud-top {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  right: 15px;
+  display: flex;
+  justify-content: space-between;
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.hud-stat {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.stat-value {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.score-box .stat-value { color: var(--secondary); }
+.streak-box .stat-value { color: #ffbe0b; }
+.timer-box .stat-value { color: var(--primary); }
+
+.hud-center {
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  width: 90%;
+  max-width: 320px;
+  pointer-events: auto;
+}
+
+.question-container {
+  background: var(--panel-bg);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.math-question {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.8rem;
+  font-weight: bold;
+}
+
+.math-operator {
+  color: #ffbe0b;
+}
+
+.math-target {
+  color: var(--primary);
+  border-bottom: 2px dashed var(--primary);
+  padding: 0 4px;
+}
+
+.hud-bottom {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.streak-notification {
+  background: var(--primary);
+  color: white;
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.streak-notification.show {
+  opacity: 1;
+}
+
+.audio-notice {
+  font-size: 0.75rem;
+  color: #ffbe0b;
+}
+
+/* Results Screen */
+.results-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.result-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95rem;
+}
+
+.result-label {
+  color: #aaa;
+}
+
+.result-value {
+  font-weight: bold;
+}
+
+.btn-group-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stars-container {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 15px;
+  font-size: 2rem;
+}
+
+.star-rating {
+  color: #333;
+  transition: color 0.2s;
+}
+
+.star-rating.active {
+  color: #ffbe0b;
+}

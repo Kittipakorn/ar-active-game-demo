@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR Active Math - เกมบวกเลขแสนสนุก</title>
+  <!-- Google Fonts for Kids-Friendly UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&family=Outfit:wght@300..900&family=Mitr:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="game-container">
+    <!-- Camera Feed (hidden, used as texture in canvas) -->
+    <video id="webcam" autoplay playsinline muted></video>
+
+    <!-- Canvas for Rendering Game + Camera Feed -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Glassmorphic UI Screens Overlay -->
+    <div id="uiOverlay" class="ui-overlay">
+      
+      <!-- SCREEN 1: Welcome / Main Menu -->
+      <div id="screenMenu" class="screen active">
+        <div class="brand">
+          <div class="ar-badge">AR INTERACTIVE</div>
+          <h1 class="game-title">AR Math Adventure</h1>
+          <p class="game-subtitle">เกมบวกเลขแสนสนุก ขยับร่างกายเพื่อตอบคำถาม!</p>
+        </div>
+
+        <div class="character-preview">
+          <div class="floating-emoji">🎈</div>
+          <div class="floating-emoji animation-delay-1">⭐</div>
+          <div class="floating-emoji animation-delay-2">🎯</div>
+        </div>
+
+        <div class="menu-card">
+          <div class="section-title">เลือกระดับความยาก</div>
+          <div class="difficulty-options">
+            <button class="diff-btn active" data-difficulty="easy">
+              <span class="diff-emoji">🌱</span>
+              <span class="diff-label">ง่ายมาก</span>
+              <span class="diff-range">บวกเลขไม่เกิน 10</span>
+            </button>
+            <button class="diff-btn" data-difficulty="medium">
+              <span class="diff-emoji">🌟</span>
+              <span class="diff-label">ปานกลาง</span>
+              <span class="diff-range">บวกเลขไม่เกิน 20</span>
+            </button>
+            <button class="diff-btn" data-difficulty="hard">
+              <span class="diff-emoji">⚡</span>
+              <span class="diff-label">ท้าทาย</span>
+              <span class="diff-range">บวกเลขไม่เกิน 50</span>
+            </button>
+          </div>
+
+          <div class="instructions">
+            <h3>🎮 วิธีเล่นง่ายๆ:</h3>
+            <p>1. อนุญาตให้ใช้งานกล้องเว็บแคม</p>
+            <p>2. ดูโจทย์เลขที่อยู่ด้านบน</p>
+            <p>3. <strong>โบกมือหรือขยับตัว</strong> ไปชนลูกโป่งที่เป็นคำตอบที่ถูกต้องเพื่อเก็บคะแนน!</p>
+          </div>
+
+          <button id="btnStartGame" class="btn-primary">
+            <span>เริ่มเล่นเกมกันเลย! 🚀</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- SCREEN 2: Calibration -->
+      <div id="screenCalibration" class="screen">
+        <div class="menu-card text-center">
+          <h2 class="screen-title">⚙️ ตั้งค่าความไวในการตรวจจับ</h2>
+          <p class="description">โบกมือผ่านช่องวงกลมสีส้มเพื่อทดสอบระดับการเคลื่อนไหว</p>
+          
+          <div class="calibration-preview-area">
+            <!-- Canvas is behind, here we just show state/help -->
+            <div class="calibration-status" id="calibrationStatus">กรุณารอสักครู่ กำลังเปิดกล้อง...</div>
+          </div>
+
+          <div class="slider-container">
+            <label for="sliderSensitivity">ความไวการตรวจจับ (Sensitivity): <span id="valSensitivity">70</span></label>
+            <input type="range" id="sliderSensitivity" min="10" max="100" value="70">
+            <span class="slider-help">ปรับลดลงหากตัวตรวจจับตอบสนองช้าเกินไป, ปรับเพิ่มขึ้นหากมีสิ่งรบกวนในห้อง</span>
+          </div>
+
+          <div class="btn-group">
+            <button id="btnCalibrationDone" class="btn-primary">
+              <span>ข้ามขั้นตอน / เริ่มเล่นเลย ▶️</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SCREEN 3: HUD (Heads Up Display during gameplay) -->
+      <div id="screenHUD" class="screen flex-column justify-between no-pointer-events">
+        <!-- Top Stats Row -->
+        <div class="hud-top pointer-events">
+          <div class="hud-stat score-box">
+            <span class="hud-icon">🏆</span>
+            <div class="hud-details">
+              <span class="stat-label">คะแนน</span>
+              <span id="hudScore" class="stat-value">0</span>
+            </div>
+          </div>
+          
+          <div class="hud-stat streak-box">
+            <span class="hud-icon">🔥</span>
+            <div class="hud-details">
+              <span class="stat-label">คอมโบ</span>
+              <span id="hudStreak" class="stat-value">0</span>
+            </div>
+          </div>
+
+          <div class="hud-stat timer-box">
+            <span class="hud-icon">⏱️</span>
+            <div class="hud-details">
+              <span class="stat-label">เวลาที่เหลือ</span>
+              <span id="hudTimer" class="stat-value">60s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center Question display (high visibility) -->
+        <div class="hud-center pointer-events">
+          <div class="question-container">
+            <div class="math-question">
+              <span id="numA">3</span>
+              <span class="math-operator">+</span>
+              <span id="numB">5</span>
+              <span class="math-operator">=</span>
+              <span class="math-target">?</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom instructions/warnings if any -->
+        <div class="hud-bottom pointer-events">
+          <div id="streakNotification" class="streak-notification">ยอดเยี่ยม! คอมโบ x5 🎉</div>
+          <div id="audioWarning" class="audio-notice" style="display: none;">🔊 กำลังเปิดเสียง...</div>
+        </div>
+      </div>
+
+      <!-- SCREEN 4: Game Over / Results -->
+      <div id="screenGameOver" class="screen">
+        <div class="menu-card text-center results-card">
+          <div class="gameover-header">
+            <span class="gameover-emoji">🏆</span>
+            <h2 class="gameover-title">เก่งมากครับ! เล่นจบแล้ว</h2>
+          </div>
+
+          <div class="stars-container" id="starsContainer">
+            <span class="star-rating">⭐</span>
+            <span class="star-rating">⭐</span>
+            <span class="star-rating">⭐</span>
+          </div>
+
+          <div class="results-stats">
+            <div class="result-row">
+              <span class="result-label">คะแนนที่ทำได้:</span>
+              <span class="result-value text-primary" id="resultScore">150</span>
+            </div>
+            <div class="result-row">
+              <span class="result-label">คะแนนสูงสุดเดิม:</span>
+              <span class="result-value" id="resultHighScore">120</span>
+            </div>
+            <div class="result-row">
+              <span class="result-label">ตอบถูกทั้งหมด:</span>
+              <span class="result-value" id="resultCorrect">15 ข้อ</span>
+            </div>
+            <div class="result-row">
+              <span class="result-label">คอมโบสูงสุด:</span>
+              <span class="result-value text-accent" id="resultMaxStreak">8</span>
+            </div>
+          </div>
+
+          <div class="btn-group-vertical">
+            <button id="btnPlayAgain" class="btn-primary">
+              <span>เล่นใหม่อีกครั้ง 🔄</span>
+            </button>
+            <button id="btnMainMenu" class="btn-secondary">
+              <span>กลับสู่หน้าหลัก 🏠</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
