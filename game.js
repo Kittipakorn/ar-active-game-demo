@@ -44,6 +44,7 @@ let handsDetector = null;
 let handX = null;
 let handY = null;
 let isHandTrackingActive = false;
+let isProcessingHand = false;
 
 
 // Math puzzle info
@@ -892,10 +893,16 @@ function processMotionDetection() {
   
   // Send frame to MediaPipe Hands if active, bypassing legacy pixel calculations
   if (isHandTrackingActive && handsDetector && webcam.readyState >= 2) {
-    try {
-      handsDetector.send({ image: webcam });
-    } catch (e) {
-      console.error("MediaPipe Hands send error:", e);
+    if (!isProcessingHand) {
+      isProcessingHand = true;
+      handsDetector.send({ image: webcam })
+        .then(() => {
+          isProcessingHand = false;
+        })
+        .catch(e => {
+          console.error("MediaPipe Hands send error:", e);
+          isProcessingHand = false;
+        });
     }
     return;
   }
